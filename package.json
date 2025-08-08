@@ -1,5 +1,5 @@
 {
-  "name": "my-app",
+  "name": "@share911/roles",
   "version": "1.0.0",
   "dependencies": {
     "mongodb": "^4.17.2"
