@@ -1,6 +1,24 @@
 # @share911/roles
 Scope-aware roles and permissions helpers for applications backed by MongoDB. Keep your authorization model simple: assign permissions within scopes (e.g., per tenant/project) and use a special global scope for permissions that apply everywhere.
 
+## Installation
+
+Using npm:
+```sh
+npm install @share911/roles
+```
+
+Using yarn: 
+```sh
+yarn add @share911/roles
+```
+
+Using pnpm:
+```sh
+pnpm add @share911/roles
+```
+
+
 ## Concepts
 - A user has an array of role entries. Each entry contains:
   - scope: string identifier (e.g., project:alpha, tenant/123, organization1)
@@ -50,16 +68,6 @@ async function grantGlobalAdmin(userIds: string[]) {
 
   await client.close()
 }
-```
-
-## Installation
-```sh
-npm install
-```
-
-Optional build step if you want compiled output in dist/:
-```sh
-npm run build
 ```
 
 ## Test
