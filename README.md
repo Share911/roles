@@ -1,8 +1,6 @@
 # @share911/roles
 Scope-aware roles and permissions helpers for applications backed by MongoDB. Keep your authorization model simple: assign permissions within scopes (e.g., per tenant/project) and use a special global scope for permissions that apply everywhere.
 
-Based on the [Meteor roles package Version 2](https://github.com/Meteor-Community-Packages/meteor-roles/tree/v2).
-
 ## Concepts
 - A user has an array of role entries. Each entry contains:
   - scope: string identifier (e.g., project:alpha, tenant/123, organization1)
