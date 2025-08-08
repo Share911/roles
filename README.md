@@ -1,35 +1,41 @@
-# s911-roles
+# @share911/roles
 Scope-aware roles and permissions helpers for applications backed by MongoDB. Keep your authorization model simple: assign permissions within scopes (e.g., per tenant/project) and use a special global scope for permissions that apply everywhere.
 
 Based on the [Meteor roles package Version 2](https://github.com/Meteor-Community-Packages/meteor-roles/tree/v2).
 
 ## Concepts
 - A user has an array of role entries. Each entry contains:
-  - scope: string identifier (e.g., tenant:123, project:alpha)
+  - scope: string identifier (e.g., project:alpha, tenant/123, organization1)
   - permissions: string[] (e.g., ['admin', 'editor'])
 - A special constant GLOBAL_SCOPE allows you to grant permissions that apply across all scopes.
 
 ## Quick start
 - Check permissions at runtime:
 ```typescript
-import { userIsInRole, GLOBAL_SCOPE, type RolesUser } from 's911-roles'
+import { userIsInRole, GLOBAL_SCOPE, type RolesUser } from '@share911/roles'
 
-const user: RolesUser = {
-  _id: 'user-123',
-  roles: [
-    { scope: 'project:alpha', permissions: ['viewer'] },
-    { scope: GLOBAL_SCOPE, permissions: ['admin'] },
-  ],
-}
+// get user object from database
+const user: RolesUser = await getUserById('user-123')
 
-userIsInRole(user, 'admin') // true (global)
+// Structure of `user` object:
+// {
+//   _id: 'user-123',
+//   roles: [
+//     { scope: 'project:alpha', permissions: ['viewer'] },
+//     { scope: GLOBAL_SCOPE, permissions: ['admin'] },
+//   ],
+// }
+
+// check permissions
+userIsInRole(user, 'admin') // true via global
+userIsInRole(user, 'viewer', 'project:alpha') // true via specific scope
 userIsInRole(user, ['editor', 'admin'], 'project:alpha') // true via global
 userIsInRole(user, 'editor', 'project:beta') // false
 ```
 
 - Add permissions to users for a scope:
 ```typescript
-import { addUsersToRoles, GLOBAL_SCOPE, type RolesUser, type UpdateType } from 's911-roles'
+import { addUsersToRoles, GLOBAL_SCOPE, type RolesUser, type UpdateType } from '@share911/roles'
 import { MongoClient } from 'mongodb'
 
 type User = RoleUser & {
