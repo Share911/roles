@@ -28,7 +28,7 @@ pnpm add @share911/roles
 ## Quick start
 - Check permissions at runtime:
 ```typescript
-import { userIsInRole, GLOBAL_SCOPE, type RolesUser } from '@share911/roles'
+import { userIsInRole, GLOBAL_SCOPE, type RolesUser } from '@share911/roles/dist'
 
 // get user object from database
 const user: RolesUser = await getUserById('user-123')
@@ -51,7 +51,7 @@ userIsInRole(user, 'editor', 'project:beta') // false
 
 - Add permissions to users for a scope:
 ```typescript
-import { addUsersToRoles, GLOBAL_SCOPE, type RolesUser, type UpdateType } from '@share911/roles'
+import { addUsersToRoles, GLOBAL_SCOPE, type RolesUser, type UpdateType } from '@share911/roles/dist'
 import { MongoClient } from 'mongodb'
 
 type User = RoleUser & {
