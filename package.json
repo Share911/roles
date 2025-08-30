@@ -1,6 +1,6 @@
 {
   "name": "@share911/roles",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "repository": "github:Share911/roles",
   "dependencies": {
     "mongodb": "^4.17.2"
@@ -8,7 +8,6 @@
   "devDependencies": {
     "@eslint/js": "^9.26.0",
     "@types/mocha": "^10.0.10",
-    "@types/underscore": "^1.13.0",
     "eslint": "^9.26.0",
     "globals": "^16.1.0",
     "madge": "^8.0.0",
@@ -16,8 +15,7 @@
     "mongodb-in-memory": "^1.0.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3",
-    "typescript-eslint": "^8.32.1",
-    "underscore": "^1.8.3"
+    "typescript-eslint": "^8.32.1"
   },
   "scripts": {
     "build": "npx tsc",

@@ -1,5 +1,4 @@
 import assert from 'assert'
-import _ from 'underscore'
 import {
   Collection,
   Db,
@@ -52,8 +51,8 @@ describe('roles', function () {
   let findOne: <T extends User> (filter: Filter<T>, findOptions?: FindOptions) => Promise<T | null> 
   let updateMany: <T extends User> (filter: Filter<T>, update: UpdateFilter<T>, options?: UpdateOptions) => Promise<Document | UpdateResult>
 
-  let users: Users = {},
-    userRoles = ['admin','editor','user']
+  let users: Users = {}
+  const USER_ROLES = ['admin', 'editor', 'user']
 
   before(async function () {
     client = await MongoClient.connect('mongodb://localhost:27017/roles-npm')
@@ -89,20 +88,24 @@ describe('roles', function () {
     users.joe = await findOne({username: 'joe'}) as User
   }
 
-  async function testUser(username: string, expectedRoles: string[], group?: string) {
-    const userId = users[username]._id,
-      userObj = await findOne({_id: userId}) as User
+  async function testUser(username: string, expectedRoles: string | string[], group?: string) {
+    const userId = users[username]._id
+    const userObj = await findOne({_id: userId}) as User
+
+    if (typeof expectedRoles === 'string') {
+      expectedRoles = [expectedRoles]
+    }
 
     // check using passed-in user object
     await _innerTest(userObj, username, expectedRoles, group)
   }
 
-  async function _innerTest (userParam:User, username:string, expectedRoles: string[], group ?: string) {
+  async function _innerTest (userParam: User, username: string, expectedRoles: string[], group?: string) {
     // test that user has only the roles expected and no others
-    for (let role of userRoles) {
-      var expected = _.contains(expectedRoles, role),
-        msg = username + ' expected to have \'' + role + '\' permission but does not',
-        nmsg = username + ' had the following un-expected permission: ' + role
+    for (let role of USER_ROLES) {
+      let expected = expectedRoles.includes(role)
+      let msg = username + ' expected to have \'' + role + '\' permission but does not'
+      let nmsg = username + ' had the following un-expected permission: ' + role
 
       if (expected) {
         test.isTrue(userIsInRole(userParam, role, group), msg)
@@ -116,33 +119,16 @@ describe('roles', function () {
       await reset()
 
       await usersCollection.updateOne(
-        { '_id' :users.eve._id },
-        { $set : {
-            roles: [
-              {
-                scope: 'scope',
-                permissions: ['admin', 'user']
-              }
-            ]
-          }
-        }
-      )
-      await testUser('eve', ['admin', 'user'])
-    })
-
-  it('can check if user is in role by group', async function () {
-      await reset()
-
-      await usersCollection.updateOne(
-        { _id:users.eve._id },
+        { _id: users.eve._id },
         { $push: { roles: {scope: 'group1', permissions: ['admin', 'user']} } })
       await usersCollection.updateOne(
-        { _id:users.eve._id },
+        { _id: users.eve._id },
         { $push: { roles: {scope: 'group2', permissions: ['editor'] }} })
 
-
       await testUser('eve', ['admin', 'user'], 'group1')
-      await testUser('eve', ['editor'], 'group2')
+      await testUser('eve', 'editor', 'group2')
+      await testUser('bob', [], 'group1')
+      await testUser('joe', [], 'group1')
     })
 
 
@@ -154,61 +140,58 @@ describe('roles', function () {
     })
 
   it('can check user against several roles at once', async function () {
-      let user
       await reset()
 
       await addUsersToRoles(updateMany, users.eve._id, ['admin', 'user'], 'scope1')
-      user = await findOne({_id:users.eve._id}) as User
+      const user = await findOne({_id: users.eve._id}) as User
 
-      test.isTrue(userIsInRole(user, ['editor','admin']))
+      test.isFalse(userIsInRole(user, 'editor', 'scope1'), 'expected not to have editor role but found')
+      test.isTrue(userIsInRole(user, 'admin', 'scope1'), 'expected admin role but not found')
+      test.isTrue(userIsInRole(user, ['admin', 'user'], 'scope1'), 'expected admin or user role but not found')
+      test.isTrue(userIsInRole(user, ['admin', 'foo'], 'scope1'), 'expected admin or foo role but not found')
     })
 
-  it('can\'t add non-existent user to role', async function () {
+  it('adding non-existent users to role does nothing', async function () {
       await reset()
 
-      await addUsersToRoles(updateMany, ['1'], ['admin'], 'scope1')
-      test.equal(await findOne({_id:'1'}), undefined)
+      const fakeUserId = 'xyz123'
+      await addUsersToRoles(updateMany, fakeUserId, ['admin'], 'scope1')
+      test.equal(await findOne({_id: fakeUserId}), null)
     })
 
   it('can add individual users to roles', async function () {
       await reset()
 
       await addUsersToRoles(updateMany, users.eve._id, ['admin', 'user'], 'scope1')
+      await addUsersToRoles(updateMany, users.eve._id, ['editor'], 'scope2')
 
-      await testUser('eve', ['admin', 'user'])
+      await testUser('eve', ['admin', 'user'], 'scope1')
+      await testUser('eve', ['editor'], 'scope2')
+      await testUser('eve', [], 'scope3')
+      await testUser('eve', [])
+      await testUser('bob', [], 'scope1')
+      await testUser('bob', [], 'scope2')
+      await testUser('bob', [], 'scope3')
       await testUser('bob', [])
+      await testUser('joe', [], 'scope1')
+      await testUser('joe', [], 'scope2')
+      await testUser('joe', [], 'scope3')
       await testUser('joe', [])
 
       await addUsersToRoles(updateMany, users.joe._id, ['editor', 'user'], 'scope1')
+      await addUsersToRoles(updateMany, users.joe._id, ['admin', 'user'], 'scope3')
 
-      await testUser('eve', ['admin', 'user'])
+      await testUser('eve', ['admin', 'user'], 'scope1')
+      await testUser('eve', [], 'scope3')
+      await testUser('eve', [])
+      await testUser('bob', [], 'scope1')
+      await testUser('bob', [], 'scope2')
+      await testUser('bob', [], 'scope3')
       await testUser('bob', [])
-      await testUser('joe', ['editor', 'user'])
-    })
-
-  it('can add individual users to roles by group', async function () {
-      await reset()
-
-      await addUsersToRoles(updateMany, users.eve._id, ['admin', 'user'], 'group1')
-
-      await testUser('eve', ['admin', 'user'], 'group1')
-      await testUser('bob', [], 'group1')
-      await testUser('joe', [], 'group1')
-
-      await testUser('eve', [], 'group2')
-      await testUser('bob', [], 'group2')
-      await testUser('joe', [], 'group2')
-
-      await addUsersToRoles(updateMany, users.joe._id, ['editor', 'user'], 'group1')
-      await addUsersToRoles(updateMany, users.bob._id, ['editor', 'user'], 'group2')
-
-      await testUser('eve', ['admin', 'user'], 'group1')
-      await testUser('bob', [], 'group1')
-      await testUser('joe', ['editor', 'user'], 'group1')
-
-      await testUser('eve', [], 'group2')
-      await testUser('bob', ['editor', 'user'], 'group2')
-      await testUser('joe', [], 'group2')
+      await testUser('joe', ['editor', 'user'], 'scope1')
+      await testUser('joe', [], 'scope2')
+      await testUser('joe', ['admin', 'user'], 'scope3')
+      await testUser('joe', [])
     })
 
   it('can add user to roles multiple times', async function () {
@@ -217,34 +200,17 @@ describe('roles', function () {
       await addUsersToRoles(updateMany, users.eve._id, ['admin', 'user'], 'scope1')
       await addUsersToRoles(updateMany, users.eve._id, ['admin', 'user'], 'scope1')
 
-      await testUser('eve', ['admin', 'user'])
-      await testUser('bob', [])
-      await testUser('joe', [])
+      await testUser('eve', ['admin', 'user'], 'scope1')
+      await testUser('eve', [], 'scope2')
+      await testUser('bob', [], 'scope1')
+      await testUser('joe', [], 'scope1')
 
       await addUsersToRoles(updateMany, users.bob._id, ['admin'], 'scope1')
       await addUsersToRoles(updateMany, users.bob._id, ['editor'], 'scope1')
 
-      await testUser('eve', ['admin', 'user'])
-      await testUser('bob', ['admin', 'editor'])
-      await testUser('joe', [])
-    })
-
-  it('can add user to roles multiple times by group', async function () {
-      await reset()
-
-      await addUsersToRoles(updateMany, users.eve._id, ['admin', 'user'], 'group1')
-      await addUsersToRoles(updateMany, users.eve._id, ['admin', 'user'], 'group1')
-
-      await testUser('eve', ['admin', 'user'], 'group1')
-      await testUser('bob', [], 'group1')
-      await testUser('joe', [], 'group1')
-
-      await addUsersToRoles(updateMany, users.bob._id, ['admin'], 'group1')
-      await addUsersToRoles(updateMany, users.bob._id, ['editor'], 'group1')
-
-      await testUser('eve', ['admin', 'user'], 'group1')
-      await testUser('bob', ['admin', 'editor'], 'group1')
-      await testUser('joe', [], 'group1')
+      await testUser('eve', ['admin', 'user'], 'scope1')
+      await testUser('bob', ['admin', 'editor'], 'scope1')
+      await testUser('joe', [], 'scope1')
     })
 
   it('can add multiple users to roles at once', async function () {
@@ -252,166 +218,66 @@ describe('roles', function () {
 
       await addUsersToRoles(updateMany, [users.eve._id, users.bob._id], ['admin', 'user'], 'scope1')
 
-      await testUser('eve', ['admin', 'user'])
-      await testUser('bob', ['admin', 'user'])
-      await testUser('joe', [])
+      await testUser('eve', ['admin', 'user'], 'scope1')
+      await testUser('bob', ['admin', 'user'], 'scope1')
+      await testUser('joe', [], 'scope1')
 
       await addUsersToRoles(updateMany, [users.bob._id, users.joe._id], ['editor', 'user'], 'scope1')
 
-      await testUser('eve', ['admin', 'user'])
-      await testUser('bob', ['admin', 'editor', 'user'])
-      await testUser('joe', ['editor', 'user'])
-    })
-
-  it('can add multiple users to roles by group', async function () {
-      await reset()
-
-      await addUsersToRoles(updateMany, [users.eve._id, users.bob._id], ['admin', 'user'], 'group1')
-
-      await testUser('eve', ['admin', 'user'], 'group1')
-      await testUser('bob', ['admin', 'user'], 'group1')
-      await testUser('joe', [], 'group1')
-
-      await testUser('eve', [], 'group2')
-      await testUser('bob', [], 'group2')
-      await testUser('joe', [], 'group2')
-
-      await addUsersToRoles(updateMany, [users.bob._id, users.joe._id], ['editor', 'user'], 'group1')
-      await addUsersToRoles(updateMany, [users.bob._id, users.joe._id], ['editor', 'user'], 'group2')
-
-      await testUser('eve', ['admin', 'user'], 'group1')
-      await testUser('bob', ['admin', 'editor', 'user'], 'group1')
-      await testUser('joe', ['editor', 'user'], 'group1')
-
-      await testUser('eve', [], 'group2')
-      await testUser('bob', ['editor', 'user'], 'group2')
-      await testUser('joe', ['editor', 'user'], 'group2')
+      await testUser('eve', ['admin', 'user'], 'scope1')
+      await testUser('bob', ['admin', 'editor', 'user'], 'scope1')
+      await testUser('joe', ['editor', 'user'], 'scope1')
     })
 
   it('can remove individual users from roles', async function () {
       await reset()
 
-      // remove user role - one user
       await addUsersToRoles(updateMany, [users.eve._id, users.bob._id], ['editor', 'user'], 'scope1')
-      await testUser('eve', ['editor', 'user'])
-      await testUser('bob', ['editor', 'user'])
+      await testUser('eve', ['editor', 'user'], 'scope1')
+      await testUser('bob', ['editor', 'user'], 'scope1')
+
+      // remove user role - one user
       await removeUsersFromRoles(updateMany, users.eve._id, ['user'], 'scope1')
-      await testUser('eve', ['editor'])
-      await testUser('bob', ['editor', 'user'])
+      await testUser('eve', ['editor'], 'scope1')
+      await testUser('bob', ['editor', 'user'], 'scope1')
     })
   it('can remove user from roles multiple times', async function () {
       await reset()
 
-      // remove user role - one user
       await addUsersToRoles(updateMany, [users.eve._id, users.bob._id], ['editor', 'user'], 'scope1')
-      await testUser('eve', ['editor', 'user'])
-      await testUser('bob', ['editor', 'user'])
+      await testUser('eve', ['editor', 'user'], 'scope1')
+      await testUser('bob', ['editor', 'user'], 'scope1')
+
+      // remove user role - one user
       await removeUsersFromRoles(updateMany, users.eve._id, ['user'], 'scope1')
-      await testUser('eve', ['editor'])
-      await testUser('bob', ['editor', 'user'])
+      await testUser('eve', ['editor'], 'scope1')
+      await testUser('bob', ['editor', 'user'], 'scope1')
 
       // try remove again
       await removeUsersFromRoles(updateMany, users.eve._id, ['user'], 'scope1')
-      await testUser('eve', ['editor'])
-    })
-
-  it('can remove individual users from roles by group', async function () {
-      await reset()
-
-      // remove user role - one user
-      await addUsersToRoles(updateMany, [users.eve._id, users.bob._id], ['editor', 'user'], 'group1')
-      await addUsersToRoles(updateMany, [users.joe._id, users.bob._id], ['admin'], 'group2')
-      await testUser('eve', ['editor', 'user'], 'group1')
-      await testUser('bob', ['editor', 'user'], 'group1')
-      await testUser('joe', [], 'group1')
-      await testUser('eve', [], 'group2')
-      await testUser('bob', ['admin'], 'group2')
-      await testUser('joe', ['admin'], 'group2')
-
-      await removeUsersFromRoles(updateMany, users.eve._id, ['user'], 'group1')
-      await testUser('eve', ['editor'], 'group1')
-      await testUser('bob', ['editor', 'user'], 'group1')
-      await testUser('joe', [], 'group1')
-      await testUser('eve', [], 'group2')
-      await testUser('bob', ['admin'], 'group2')
-      await testUser('joe', ['admin'], 'group2')
+      await testUser('eve', ['editor'], 'scope1')
+      await testUser('bob', ['editor', 'user'], 'scope1')
     })
 
   it('can remove multiple users from roles at once', async function () {
       await reset()
 
-      // remove user role - two users
-      await addUsersToRoles(updateMany, [users.eve._id, users.bob._id], ['editor', 'user'], 'scope1')
-      await testUser('eve', ['editor', 'user'])
-      await testUser('bob', ['editor', 'user'])
-
-      test.isFalse(userIsInRole(users.joe, 'admin'))
+      await addUsersToRoles(updateMany, [users.eve._id, users.bob._id], ['editor'], 'scope1')
       await addUsersToRoles(updateMany, [users.bob._id, users.joe._id], ['admin', 'user'], 'scope1')
-      await testUser('bob', ['admin', 'user', 'editor'])
-      await testUser('joe', ['admin', 'user'])
+      await addUsersToRoles(updateMany, [users.eve._id, users.joe._id], ['user'], 'scope1')
+
+      await testUser('eve', ['editor', 'user'], 'scope1')
+      await testUser('bob', ['admin', 'editor', 'user'], 'scope1')
+      await testUser('joe', ['admin', 'user'], 'scope1')
+
+      // remove user role - two users
       await removeUsersFromRoles(updateMany, [users.bob._id, users.joe._id], ['admin'], 'scope1')
-      await testUser('bob', ['user', 'editor'])
-      await testUser('joe', ['user'])
-    })
-
-  it('can remove multiple users from roles by group', async function () {
-      await reset()
-
-      // remove user role - one user
-      await addUsersToRoles(updateMany, [users.eve._id, users.bob._id], ['editor', 'user'], 'group1')
-      await addUsersToRoles(updateMany, [users.joe._id, users.bob._id], ['admin'], 'group2')
-      await testUser('eve', ['editor', 'user'], 'group1')
-      await testUser('bob', ['editor', 'user'], 'group1')
-      await testUser('joe', [], 'group1')
-      await testUser('eve', [], 'group2')
-      await testUser('bob', ['admin'], 'group2')
-      await testUser('joe', ['admin'], 'group2')
-
-      await removeUsersFromRoles(updateMany, [users.eve._id, users.bob._id], ['user'], 'group1')
-      await testUser('eve', ['editor'], 'group1')
-      await testUser('bob', ['editor'], 'group1')
-      await testUser('joe', [], 'group1')
-      await testUser('eve', [], 'group2')
-      await testUser('bob', ['admin'], 'group2')
-      await testUser('joe', ['admin'], 'group2')
-
-      await removeUsersFromRoles(updateMany, [users.joe._id, users.bob._id], ['admin'], 'group2')
-      await testUser('eve', [], 'group2')
-      await testUser('bob', [], 'group2')
-      await testUser('joe', [], 'group2')
+      await testUser('eve', ['editor', 'user'], 'scope1')
+      await testUser('bob', ['user', 'editor'], 'scope1')
+      await testUser('joe', ['user'], 'scope1')
     })
 
   it('can set user roles', async function () {
-      await reset()
-
-      await setUserRoles(updateMany, [users.eve._id, users.bob._id], ['editor', 'user'], 'scope1')
-      await testUser('eve', ['editor', 'user'])
-      await testUser('bob', ['editor', 'user'])
-      await testUser('joe', [])
-
-      // use addUsersToRoles add some roles
-      await addUsersToRoles(updateMany, [users.bob._id, users.joe._id], ['admin'], 'scope1')
-      await testUser('eve', ['editor', 'user'])
-      await testUser('bob', ['admin', 'editor', 'user'])
-      await testUser('joe', ['admin'])
-
-      await setUserRoles(updateMany, [users.eve._id, users.bob._id], ['user'], 'scope1')
-      await testUser('eve', ['user'])
-      await testUser('bob', ['user'])
-      await testUser('joe', ['admin'])
-
-      await setUserRoles(updateMany, users.bob._id, 'editor', 'scope1')
-      await testUser('eve', ['user'])
-      await testUser('bob', ['editor'])
-      await testUser('joe', ['admin'])
-
-      await setUserRoles(updateMany, [users.joe._id, users.bob._id], [], 'scope1')
-      await testUser('eve', ['user'])
-      await testUser('bob', [])
-      await testUser('joe', [])
-    })
-
-  it('can set user roles by group', async function () {
       await reset()
 
       await setUserRoles(updateMany, [users.eve._id, users.bob._id], ['editor', 'user'], 'group1')
@@ -459,15 +325,17 @@ describe('roles', function () {
       await testUser('joe', ['editor'], 'group2')
     })
 
-  it('can set user roles by group including GLOBAL_GROUP', async function () {
+  it('can set user roles by GLOBAL_SCOPE', async function () {
       await reset()
 
       await addUsersToRoles(updateMany, users.eve._id, 'admin', GLOBAL_SCOPE)
       await testUser('eve', ['admin'], 'group1')
+      await testUser('eve', ['admin'], GLOBAL_SCOPE)
       await testUser('eve', ['admin'])
 
       await setUserRoles(updateMany, users.eve._id, 'editor', GLOBAL_SCOPE)
       await testUser('eve', ['editor'], 'group2')
+      await testUser('eve', ['editor'], GLOBAL_SCOPE)
       await testUser('eve', ['editor'])
     })
 
@@ -488,34 +356,18 @@ describe('roles', function () {
 
       await addUsersToRoles(updateMany, userId, ['admin', 'user'], 'scope1')
 
-      // by user object
       userObj = await findOne({_id: userId}) as User
       test.equal(getRolesForUser(userObj, 'scope1'), ['admin', 'user'])
-    })
-
-  it('can get all roles for user by group', async function () {
-      await reset()
-
-      const userId = users.eve._id
-      let userObj
-
-      userObj = await findOne({_id: userId}) as User
-      test.equal(await getRolesForUser(userObj, 'group1'), [])
-      // add roles
-      await addUsersToRoles(updateMany, userId, ['admin', 'user'], 'group1')
-
-      userObj = await findOne({_id: userId}) as User
-      test.equal(await getRolesForUser(userObj, 'group1'), ['admin', 'user'])
-      test.equal(await getRolesForUser(userObj), [])
+      test.equal(getRolesForUser(userObj), ['admin', 'user'])
     })
 
   it('can get all roles for user by group with periods in name', async function () {
       await reset()
 
-      await addUsersToRoles(updateMany, users.joe._id, ['admin'], 'example.k12.va.us')
+      await addUsersToRoles(updateMany, users.joe._id, ['admin', 'user'], 'example.k12.va.us')
 
       const userObj = await findOne({_id: users.joe._id}) as User
-      test.equal(await getRolesForUser(userObj, 'example.k12.va.us'), ['admin'])
+      test.equal(await getRolesForUser(userObj, 'example.k12.va.us'), ['admin', 'user'])
     })
 
   it('can get all roles for user by group including GLOBAL_SCOPE', async function () {
@@ -525,11 +377,31 @@ describe('roles', function () {
       let userObj
 
       await addUsersToRoles(updateMany, [userId], ['editor'], GLOBAL_SCOPE)
-      await addUsersToRoles(updateMany, [userId], ['admin', 'user'], 'scope1')
+      await addUsersToRoles(updateMany, [userId], ['admin'], 'scope1')
+      await addUsersToRoles(updateMany, [userId], ['user'], 'scope2')
 
       userObj = await findOne({_id: userId}) as User
-      test.equal(getRolesForUser(userObj, 'scope1'), ['editor', 'admin', 'user'])
-      test.equal(getRolesForUser(userObj), ['editor'])
+      test.equal(getRolesForUser(userObj, 'scope1'), ['editor', 'admin'])
+      test.equal(getRolesForUser(userObj), ['editor', 'admin', 'user'])
+    })
+  it('can get all roles for user by group excluding GLOBAL_SCOPE', async function () {
+      await reset()
+
+      const userId = users.eve._id
+      let userObj
+
+      await addUsersToRoles(updateMany, [userId], ['editor'], GLOBAL_SCOPE)
+      await addUsersToRoles(updateMany, [userId], ['admin'], 'scope1')
+      await addUsersToRoles(updateMany, [userId], ['user'], 'scope2')
+
+      userObj = await findOne({_id: userId}) as User
+      test.equal(getRolesForUser(userObj, 'scope1'), ['editor', 'admin'])
+      test.equal(getRolesForUser(userObj, 'scope2'), ['editor', 'user'])
+      test.equal(getRolesForUser(userObj, 'scope1', true), ['admin'])
+      test.equal(getRolesForUser(userObj, 'scope2', true), ['user'])
+
+      // all scopes except GLOBAL
+      test.equal(getRolesForUser(userObj, '', true), ['admin', 'user'])
     })
 
 

@@ -16,10 +16,13 @@ function userIsInRole(user, roles, scope) {
     if (typeof roles === 'string') {
         roles = [roles];
     }
+    if (!scope) {
+        scope = exports.GLOBAL_SCOPE;
+    }
     if (typeof user === 'object' && Array.isArray(user.roles)) {
         const userRoles = user.roles;
         return userRoles
-            .filter(role => scope ? (role.scope === scope || role.scope === exports.GLOBAL_SCOPE) : true)
+            .filter(role => role.scope === scope || role.scope === exports.GLOBAL_SCOPE)
             .flatMap(role => role.permissions)
             .some(permission => roles.includes(permission));
     }
@@ -84,9 +87,30 @@ function getRolesForUser(user, scope, excludeGlobalScope) {
     if (typeof user === 'object') {
         roles = user.roles;
     }
+    const getRolesFilter = (role) => {
+        if (!scope) {
+            // no scope specified
+            if (excludeGlobalScope) {
+                // ...return all except GLOBAL
+                return role.scope !== exports.GLOBAL_SCOPE;
+            }
+            // ...return all scopes
+            return true;
+        }
+        else {
+            // scope specified
+            if (excludeGlobalScope) {
+                // ...don't include GLOBAL
+                return role.scope === scope;
+            }
+            // ...also include GLOBAL_SCOPE
+            return role.scope === scope || role.scope === exports.GLOBAL_SCOPE;
+        }
+        return true;
+    };
     if (roles && roles.length > 0) {
         return roles
-            .filter((role) => role.scope === scope || (!excludeGlobalScope && role.scope === exports.GLOBAL_SCOPE))
+            .filter(getRolesFilter)
             .flatMap((role) => role.permissions);
     }
     return [];

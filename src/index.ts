@@ -30,10 +30,14 @@ export function userIsInRole(user: RolesUser, roles: string | string[], scope?: 
     roles = [roles]
   }
 
+  if (!scope) {
+    scope = GLOBAL_SCOPE
+  }
+
   if (typeof user === 'object' && Array.isArray(user.roles)) {
     const userRoles = user.roles as Role[]
     return userRoles
-      .filter(role => scope ? (role.scope === scope || role.scope === GLOBAL_SCOPE) : true)
+      .filter(role => role.scope === scope || role.scope === GLOBAL_SCOPE)
       .flatMap(role => role.permissions)
       .some(permission => roles.includes(permission))
   }
@@ -101,13 +105,35 @@ export function getRolesForUser (user: Partial<RolesUser>, scope?: string, exclu
     roles = user.roles
   }
 
+  const getRolesFilter = (role: Role) => {
+    if (!scope) {
+      // no scope specified
+      if (excludeGlobalScope) {
+        // ...return all except GLOBAL
+        return role.scope !== GLOBAL_SCOPE
+      }
+      // ...return all scopes
+      return true
+    } else {
+      // scope specified
+      if (excludeGlobalScope) {
+        // ...don't include GLOBAL
+        return role.scope === scope
+      }
+      // ...also include GLOBAL_SCOPE
+      return role.scope === scope || role.scope === GLOBAL_SCOPE
+    }
+    return true
+  }
+
   if (roles && roles.length > 0) {
     return roles
-      .filter((role: any) => role.scope === scope || (!excludeGlobalScope && role.scope === GLOBAL_SCOPE))
+      .filter(getRolesFilter)
       .flatMap((role: any) => role.permissions)
   }
   return []
 }
+
 
 export async function removeUsersFromScope(updateMany: UpdateType<RolesUser>, userIds: string | string[], scopesToRemove: string | string[]) {
   if (!updateMany) throw new Error ("Missing 'updateMany' param")
