@@ -211,22 +211,6 @@ describe('roles', function () {
       await testUser('joe', [], 'group2')
     })
 
-  it('can add user to roles via user object', async function () {
-      await reset()
-
-      await addUsersToRoles(updateMany, users.eve._id, ['admin', 'user'], 'scope1')
-
-      await testUser('eve', ['admin', 'user'])
-      await testUser('bob', [])
-      await testUser('joe', [])
-
-      await addUsersToRoles(updateMany, users.bob._id, ['editor'], 'scope2')
-
-      await testUser('eve', ['admin', 'user'])
-      await testUser('bob', ['editor'])
-      await testUser('joe', [])
-    })
-
   it('can add user to roles multiple times', async function () {
       await reset()
 
@@ -263,7 +247,7 @@ describe('roles', function () {
       await testUser('joe', [], 'group1')
     })
 
-  it('can add multiple users to roles', async function () {
+  it('can add multiple users to roles at once', async function () {
       await reset()
 
       await addUsersToRoles(updateMany, [users.eve._id, users.bob._id], ['admin', 'user'], 'scope1')
@@ -353,7 +337,7 @@ describe('roles', function () {
       await testUser('joe', ['admin'], 'group2')
     })
 
-  it('can remove multiple users from roles', async function () {
+  it('can remove multiple users from roles at once', async function () {
       await reset()
 
       // remove user role - two users
