@@ -1,6 +1,7 @@
 {
   "name": "@share911/roles",
-  "version": "1.0.2",
+  "version": "1.0.3",
+  "repository": "github:Share911/roles",
   "dependencies": {
     "mongodb": "^4.17.2"
   },
